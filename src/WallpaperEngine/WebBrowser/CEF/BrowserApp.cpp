@@ -4,7 +4,12 @@
 using namespace WallpaperEngine::WebBrowser::CEF;
 
 BrowserApp::BrowserApp (WallpaperEngine::Application::WallpaperApplication& application) :
-    SubprocessApp (application) { }
+    SubprocessApp (application) {
+    // chromium overwrites the argv memory region after startup, so a copy must be kept for child processes
+    for (int i = 1; i < application.getContext ().getArgc (); i++) {
+	this->m_arguments.emplace_back (application.getContext ().getArgv ()[i]);
+    }
+}
 
 CefRefPtr<CefBrowserProcessHandler> BrowserApp::GetBrowserProcessHandler () { return this; }
 
@@ -48,7 +53,7 @@ if (process_type.empty()) {
 
 void BrowserApp::OnBeforeChildProcessLaunch (CefRefPtr<CefCommandLine> command_line) {
     // add back any parameters we had before so the new process can load up everything needed
-    for (int i = 1; i < this->getApplication ().getContext ().getArgc (); i++) {
-	command_line->AppendArgument (this->getApplication ().getContext ().getArgv ()[i]);
+    for (const auto& argument : this->m_arguments) {
+	command_line->AppendArgument (argument);
     }
 }

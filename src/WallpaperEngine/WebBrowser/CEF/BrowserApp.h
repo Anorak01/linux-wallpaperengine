@@ -5,6 +5,9 @@
 #include "WallpaperEngine/WebBrowser/WebBrowserContext.h"
 #include "include/cef_app.h"
 
+#include <string>
+#include <vector>
+
 namespace WallpaperEngine::Application {
 class WallpaperApplication;
 }
@@ -24,6 +27,8 @@ public:
     void OnBeforeChildProcessLaunch (CefRefPtr<CefCommandLine> command_line) override;
 
 private:
+    std::vector<std::string> m_arguments;
+
     IMPLEMENT_REFCOUNTING (BrowserApp);
     DISALLOW_COPY_AND_ASSIGN (BrowserApp);
 };
