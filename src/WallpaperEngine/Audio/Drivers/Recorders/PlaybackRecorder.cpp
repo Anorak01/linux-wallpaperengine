@@ -34,7 +34,9 @@ float PlaybackRecorder::getAudioScale (
 	return 1.0f;
     }
 
-    return glm::mix (bounds.x, bounds.y, this->getBandAmplitude (startBand, endBand, exponent));
+    const float amplitude = this->getBandAmplitude (startBand, endBand, exponent);
+
+    return bounds.x + (bounds.y - bounds.x) * amplitude;
 }
 
 } // namespace WallpaperEngine::Audio::Drivers::Recorders
