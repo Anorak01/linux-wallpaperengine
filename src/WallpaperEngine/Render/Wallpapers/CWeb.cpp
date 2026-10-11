@@ -103,7 +103,7 @@ void CWeb::pushAudioData () {
     // duplicated to match the amount of values pages expect
     std::ostringstream stream;
 
-    stream << "window.__wallpaperEngineDispatchAudio([";
+    stream << "if (typeof __wallpaperEngineDispatchAudio === 'function') __wallpaperEngineDispatchAudio([";
 
     for (int i = 0; i < 64; i++) {
 	const float value = recorder.audio64[i];

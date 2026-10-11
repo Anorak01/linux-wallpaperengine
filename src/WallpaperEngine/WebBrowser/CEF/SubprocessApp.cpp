@@ -33,19 +33,20 @@ void SubprocessApp::OnWebKitInitialized () {
     // register a small javascript extension that stores the callback the wallpaper registers,
     // mimicking wallpaper engine's window.wallpaperRegisterAudioListener API for web wallpapers.
     // the actual audio data is pushed from the browser process, which calls
-    // window.__wallpaperEngineDispatchAudio with the spectrum values through ExecuteJavaScript
+    // __wallpaperEngineDispatchAudio with the spectrum values through ExecuteJavaScript
+    // NOTE: extension code runs in a restricted scope where `window` is NOT accessible:
+    // referencing it crashes the renderer with SIGTRAP during context creation. bare
+    // top-level declarations are shared with the page, which is how the API is exposed
     const std::string extensionCode = R"EXT(
 var __wallpaperEngineAudioListener = null;
 function wallpaperRegisterAudioListener (callback) {
     __wallpaperEngineAudioListener = callback;
 };
-window.wallpaperRegisterAudioListener = wallpaperRegisterAudioListener;
 function __wallpaperEngineDispatchAudio (audio) {
     if (typeof __wallpaperEngineAudioListener === 'function') {
         __wallpaperEngineAudioListener (audio);
     }
 };
-window.__wallpaperEngineDispatchAudio = __wallpaperEngineDispatchAudio;
 )EXT";
 
     CefRegisterExtension ("wallpaperengine/audio", extensionCode, this);
