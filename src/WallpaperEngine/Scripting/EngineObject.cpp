@@ -1,6 +1,7 @@
 #include "EngineObject.h"
 #include "ScriptEngine.h"
 #include "WallpaperEngine/Logging/Log.h"
+#include "WallpaperEngine/Render/Wallpapers/CScene.h"
 
 #include <ranges>
 
@@ -29,6 +30,40 @@ JSValue engine_get_runtime (JSContext* ctx, JSValueConst this_val, int argc, JSV
 
 JSValue engine_get_daytime (JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
     return JS_NewFloat64 (ctx, g_Daytime);
+}
+
+JSValue engine_register_audio_listener (JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic) {
+    if (argc < 1) {
+	return JS_EXCEPTION;
+    }
+
+    JSValue function = argv[0];
+
+    if (!JS_IsFunction (ctx, function)) {
+	return JS_EXCEPTION;
+    }
+
+    // only the supported resolutions make sense, anything else falls back to 16 bands
+    uint32_t resolution = 16;
+
+    if (argc > 1) {
+	uint32_t requested = 0;
+	JS_ToUint32 (ctx, &requested, argv[1]);
+
+	if (requested == 16 || requested == 32 || requested == 64) {
+	    resolution = requested;
+	}
+    }
+
+    const auto it = engineInstances.find (magic);
+
+    if (it == engineInstances.end ()) {
+	return JS_EXCEPTION;
+    }
+
+    it->second.registerAudioListener (function, resolution);
+
+    return JS_UNDEFINED;
 }
 
 JSValue engine_stop_interval (
@@ -192,6 +227,14 @@ EngineObject::EngineObject (ScriptEngine& engine, Render::Wallpapers::CScene& sc
 	JS_NewCFunction (this->m_engine.getContext (), engine_open_user_shortcut, "openUserShortcut", 0),
 	JS_PROP_ENUMERABLE
     );
+    JS_DefinePropertyValueStr (
+	this->m_engine.getContext (), this->m_instance, "registerAudioListener",
+	JS_NewCFunctionMagic (
+	    this->m_engine.getContext (), engine_register_audio_listener, "registerAudioListener", 2,
+	    JS_CFUNC_generic, this->m_instanceId
+	),
+	JS_PROP_ENUMERABLE
+    );
     // TODO: ADD THE REST OF THE DEFINITION!
 }
 
@@ -203,10 +246,14 @@ EngineObject::~EngineObject () {
     for (const auto& [id, interval] : this->m_intervals) {
 	JS_FreeValue (this->m_engine.getContext (), interval.callback);
     }
+    for (const auto& listener : this->m_audioListeners) {
+	JS_FreeValue (this->m_engine.getContext (), listener.callback);
+    }
 
     engineInstances.erase (this->m_instanceId);
     this->m_intervals.clear ();
     this->m_timeouts.clear ();
+    this->m_audioListeners.clear ();
 
     JS_FreeValue (this->m_engine.getContext (), this->m_instance);
 }
@@ -254,6 +301,57 @@ void EngineObject::clearTimeout (uint32_t id) {
     JS_FreeValue (this->getEngine ().getContext (), it->second.callback);
 
     this->m_timeouts.erase (id);
+}
+
+void EngineObject::registerAudioListener (JSValue function, const uint32_t resolution) {
+    JSContext* ctx = this->m_engine.getContext ();
+
+    this->m_audioListeners.push_back (AudioListener {
+	.callback = JS_DupValue (ctx, function),
+	.resolution = resolution,
+    });
+}
+
+void EngineObject::tickAudio () {
+    if (this->m_audioListeners.empty ()) {
+	return;
+    }
+
+    JSContext* ctx = this->m_engine.getContext ();
+    const auto& recorder = this->m_scene.getAudioContext ().getRecorder ();
+
+    for (const auto& listener : this->m_audioListeners) {
+	const float* data = recorder.audio16;
+	uint32_t count = 16;
+
+	switch (listener.resolution) {
+	    case 32:
+		data = recorder.audio32;
+		count = 32;
+		break;
+	    case 64:
+		data = recorder.audio64;
+		count = 64;
+		break;
+	    default:
+		break;
+	}
+
+	JSValue array = JS_NewArray (ctx);
+
+	for (uint32_t i = 0; i < count; i++) {
+	    JS_DefinePropertyValueUint32 (ctx, array, i, JS_NewFloat64 (ctx, data[i]), JS_PROP_C_W_E);
+	}
+
+	JSValue result = JS_Call (ctx, listener.callback, JS_UNDEFINED, 1, &array);
+
+	if (JS_IsException (result)) {
+	    sLog.error ("Audio listener callback failed");
+	}
+
+	JS_FreeValue (ctx, result);
+	JS_FreeValue (ctx, array);
+    }
 }
 
 void EngineObject::tick () {

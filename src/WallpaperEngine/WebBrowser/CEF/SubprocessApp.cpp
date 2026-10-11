@@ -28,3 +28,33 @@ const WallpaperEngine::Application::WallpaperApplication& SubprocessApp::getAppl
 const std::map<std::string, WPSchemeHandlerFactory*>& SubprocessApp::getHandlerFactories () const {
     return this->m_handlerFactories;
 }
+
+void SubprocessApp::OnWebKitInitialized () {
+    // register a small javascript extension that stores the callback the wallpaper registers,
+    // mimicking wallpaper engine's window.wallpaperRegisterAudioListener API for web wallpapers.
+    // the actual audio data is pushed from the browser process, which calls
+    // window.__wallpaperEngineDispatchAudio with the spectrum values through ExecuteJavaScript
+    const std::string extensionCode = R"EXT(
+var __wallpaperEngineAudioListener = null;
+function wallpaperRegisterAudioListener (callback) {
+    __wallpaperEngineAudioListener = callback;
+};
+window.wallpaperRegisterAudioListener = wallpaperRegisterAudioListener;
+function __wallpaperEngineDispatchAudio (audio) {
+    if (typeof __wallpaperEngineAudioListener === 'function') {
+        __wallpaperEngineAudioListener (audio);
+    }
+};
+window.__wallpaperEngineDispatchAudio = __wallpaperEngineDispatchAudio;
+)EXT";
+
+    CefRegisterExtension ("wallpaperengine/audio", extensionCode, this);
+}
+
+bool SubprocessApp::Execute (
+    const CefString& name, CefRefPtr<CefV8Value> object, const CefV8ValueList& arguments,
+    CefRefPtr<CefV8Value>& retval, CefString& exception
+) {
+    // there are no native functions in the audio extension, nothing to handle
+    return false;
+}

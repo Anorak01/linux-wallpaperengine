@@ -28,6 +28,8 @@ public:
 
     void update () override;
 
+    [[nodiscard]] bool hasAudio () const override;
+
 private:
     pa_mainloop* m_mainloop;
     pa_mainloop_api* m_mainloopApi;

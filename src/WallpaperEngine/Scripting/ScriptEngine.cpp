@@ -617,6 +617,9 @@ void ScriptEngine::tick () {
     // run intervals
     this->m_engineObject->tick ();
 
+    // feed audio data to any registered audio listener
+    this->m_engineObject->tickAudio ();
+
     // run any pending notifications
 
     // run all update methods

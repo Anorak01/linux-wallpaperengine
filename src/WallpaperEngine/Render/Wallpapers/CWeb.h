@@ -5,7 +5,9 @@
 #include <glm/glm.hpp>
 
 #include <algorithm>
+#include <chrono>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -39,6 +41,7 @@ public:
 protected:
     void renderFrame (const glm::ivec4& viewport) override;
     void updateMouse (const glm::ivec4& viewport);
+    void pushAudioData ();
     const Web& getWeb () const { return *this->getWallpaperData ().as<Web> (); }
 
     friend class CWallpaper;
@@ -57,5 +60,7 @@ private:
 
     glm::vec2 m_mousePosition = {};
     glm::vec2 m_mousePositionLast = {};
+
+    std::chrono::steady_clock::time_point m_lastAudioUpdate {};
 };
 }

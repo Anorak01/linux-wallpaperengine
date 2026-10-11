@@ -77,7 +77,45 @@ void CWeb::renderFrame (const glm::ivec4& viewport) {
     // We might actually try to use cef to execute javascript, and not using off-screen rendering at all
     // But for now let it be like this
     //  glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    // feed the audio data to the web wallpaper so it can react to it
+    this->pushAudioData ();
     CefDoMessageLoopWork ();
+}
+
+void CWeb::pushAudioData () {
+    // only web wallpapers that requested audio processing get fed, matching wallpaper engine's behaviour
+    if (!this->getWeb ().project.supportsAudioProcessing) {
+	return;
+    }
+
+    // wallpaper engine feeds audio listeners at roughly 30 updates per second
+    const auto now = std::chrono::steady_clock::now ();
+
+    if (now - this->m_lastAudioUpdate < std::chrono::milliseconds (33)) {
+	return;
+    }
+
+    this->m_lastAudioUpdate = now;
+
+    const auto& recorder = this->getAudioContext ().getRecorder ();
+
+    // wallpaper engine's audio listeners receive 128 values, so the 64 band spectrum is
+    // duplicated to match the amount of values pages expect
+    std::ostringstream stream;
+
+    stream << "window.__wallpaperEngineDispatchAudio([";
+
+    for (int i = 0; i < 64; i++) {
+	const float value = recorder.audio64[i];
+
+	stream << value << ',' << value << (i == 63 ? "" : ",");
+    }
+
+    stream << "]);";
+
+    this->m_browser->GetMainFrame ()->ExecuteJavaScript (
+	stream.str (), this->m_browser->GetMainFrame ()->GetURL (), 0
+    );
 }
 
 void CWeb::updateMouse (const glm::ivec4& viewport) {

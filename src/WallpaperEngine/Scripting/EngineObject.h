@@ -3,6 +3,7 @@
 
 #include <chrono>
 #include <map>
+#include <vector>
 
 namespace WallpaperEngine::Render::Wallpapers {
 class CScene;
@@ -23,6 +24,17 @@ public:
     void clearTimeout (uint32_t id);
     void clearInterval (uint32_t id);
 
+    /**
+     * Registers a javascript callback to be fed with audio data every frame,
+     * mimicking wallpaper engine's engine.registerAudioListener API
+     */
+    void registerAudioListener (JSValue function, uint32_t resolution);
+
+    /**
+     * Dispatches the current audio spectrum to all registered audio listeners
+     */
+    void tickAudio ();
+
     void tick ();
 
 protected:
@@ -32,10 +44,16 @@ protected:
 	std::chrono::steady_clock::time_point next;
     };
 
+    struct AudioListener {
+	JSValue callback;
+	uint32_t resolution;
+    };
+
     uint32_t m_nextTimeoutId = 0;
     uint32_t m_nextIntervalId = 0;
     std::map<uint32_t, Timeout> m_intervals;
     std::map<uint32_t, Timeout> m_timeouts;
+    std::vector<AudioListener> m_audioListeners;
     Render::Wallpapers::CScene& m_scene;
     ScriptEngine& m_engine;
 

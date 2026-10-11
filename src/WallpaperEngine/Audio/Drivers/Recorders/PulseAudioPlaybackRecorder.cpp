@@ -211,6 +211,12 @@ PulseAudioPlaybackRecorder::~PulseAudioPlaybackRecorder () {
     pa_mainloop_free (this->m_mainloop);
 }
 
+bool PulseAudioPlaybackRecorder::hasAudio () const {
+    // only report real audio when the connection actually works, a failed
+    // connection would otherwise scale everything to silence
+    return pa_context_get_state (this->m_context) == PA_CONTEXT_READY;
+}
+
 void PulseAudioPlaybackRecorder::update () {
     pa_mainloop_iterate (this->m_mainloop, 0, nullptr);
 
