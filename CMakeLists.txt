@@ -687,7 +687,22 @@ REPLACED_SET_EXECUTABLE_TARGET_PROPERTIES(linux-wallpaperengine-lib)
 add_executable(linux-wallpaperengine
     src/main.cpp)
 
-target_link_libraries (linux-wallpaperengine PUBLIC linux-wallpaperengine-lib)
+target_link_libraries (linux-wallpaperengine PUBLIC
+    linux-wallpaperengine-lib
+    # libcef's close() interposer (base/files/scoped_file_linux.cc) resolves the real
+    # libc close() via dlsym(RTLD_NEXT, "close"), which only succeeds if libcef is
+    # loaded before libc. linking libcef only through liblinux-wallpaperengine-lib.so
+    # makes it a second-level dependency, so in breadth-first DT_NEEDED order libc
+    # loads first, the dlsym lookup returns NULL and chromium dies at startup with
+    # "close symbol missing" (SIGTRAP) - see upstream issue #628
+    # making libcef.so a direct dependency of the executable puts it in the
+    # executable's DT_NEEDED before libc (implicit libs like libc are appended to
+    # the end of the link line by the compiler driver), fixing the load order
+    # --no-as-needed is required to keep the entry: the thin main() references no
+    # CEF symbols, so linkers defaulting to --as-needed would strip it
+    -Wl,--no-as-needed
+    ceflib
+    -Wl,--as-needed)
 
 # Install the main executable and shared library via install(TARGETS)
 # so that CMake automatically strips/replaces the build-time RPATH.

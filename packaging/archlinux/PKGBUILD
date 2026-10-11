@@ -43,6 +43,10 @@ package() {
     install -d -m755 "${pkgdir}/usr/bin"
     cat > "${pkgdir}/usr/bin/${_pkgname}" << EOF
 #!/bin/bash
+# workaround for chromium's close() interposer requiring libcef to be loaded
+# before libc (upstream issue #628); should become redundant with the CMake
+# link-order fix that links libcef.so directly into the executable
+export LD_PRELOAD="/opt/${_pkgname}/libcef.so"
 export LD_LIBRARY_PATH="/opt/${_pkgname}/lib:\$LD_LIBRARY_PATH"
 cd /opt/${_pkgname}; exec ./${_pkgname} "\$@"
 EOF
