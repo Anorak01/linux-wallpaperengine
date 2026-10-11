@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <glm/common.hpp>
 
 namespace WallpaperEngine::Audio::Drivers::Recorders {
 void PlaybackRecorder::update () { }
