@@ -1,7 +1,9 @@
 #include "PulseAudioPlaybackRecorder.h"
 #include "WallpaperEngine/Logging/Log.h"
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <glm/common.hpp>
 
@@ -321,6 +323,22 @@ void PulseAudioPlaybackRecorder::update () {
     }
 
     this->updateCounter++;
+
+    static const bool perfLog = std::getenv ("LWE_PERF") != nullptr;
+
+    if (perfLog) {
+	static uint32_t perfFrames = 0;
+	static auto perfLastReport = std::chrono::steady_clock::now ();
+	const auto now = std::chrono::steady_clock::now ();
+
+	perfFrames++;
+
+	if (now - perfLastReport >= std::chrono::seconds (1)) {
+	    sLog.out ("[perf] audio spectrum updates: ", perfFrames, " Hz");
+	    perfFrames = 0;
+	    perfLastReport = now;
+	}
+    }
 }
 
 } // namespace WallpaperEngine::Audio::Drivers::Recorders

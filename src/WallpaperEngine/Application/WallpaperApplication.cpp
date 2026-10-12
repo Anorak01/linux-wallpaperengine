@@ -23,7 +23,10 @@
 #endif /* DEMOMODE */
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <climits>
+#include <cstdlib>
 #include <numeric>
 #include <unistd.h>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -35,6 +38,11 @@
 float g_Time;
 float g_TimeLast;
 float g_Daytime;
+
+namespace {
+/** accumulated wallpaper render time for the LWE_PERF=1 instrumentation */
+std::atomic<double> s_perfRenderMs { 0.0 };
+}
 
 using namespace WallpaperEngine::Assets;
 using namespace WallpaperEngine::Application;
@@ -889,14 +897,26 @@ void WallpaperApplication::render () {
 	timeinfo = localtime (&seconds);
 	g_Daytime = static_cast<float> ((timeinfo->tm_hour * 60) + timeinfo->tm_min) / (24.0f * 60.0f);
 
+	static const bool perfLog = std::getenv ("LWE_PERF") != nullptr;
+	const auto perfStart = std::chrono::steady_clock::now ();
+	double audioMs = 0.0, mediaMs = 0.0, fullscreenMs = 0.0;
+
 	// keep track of the previous frame's time
 	g_TimeLast = g_Time;
 	// calculate the current time value
 	g_Time = m_videoDriver->getRenderTime ();
 	// update audio recorder
-	m_audioDriver->update ();
+	{
+	    const auto audioStart = std::chrono::steady_clock::now ();
+	    m_audioDriver->update ();
+	    audioMs = std::chrono::duration<double, std::milli> (std::chrono::steady_clock::now () - audioStart).count ();
+	}
 	// update the media source
-	m_mediaSource->update ();
+	{
+	    const auto mediaStart = std::chrono::steady_clock::now ();
+	    m_mediaSource->update ();
+	    mediaMs = std::chrono::duration<double, std::milli> (std::chrono::steady_clock::now () - mediaStart).count ();
+	}
 	// update input information
 	m_videoDriver->getInputContext ().update ();
 	// process driver events
@@ -936,12 +956,52 @@ void WallpaperApplication::render () {
 	}
 #endif /* DEMOMODE */
 	// check for fullscreen windows and wait until there's none fullscreen
-	if (this->m_fullScreenDetector->anythingFullscreen () && this->m_context.state.general.keepRunning) {
-	    this->m_isPaused = true;
-	    this->m_pauseStart = std::chrono::steady_clock::now ();
+	{
+	    const auto fsStart = std::chrono::steady_clock::now ();
+	    const bool fullscreen = this->m_fullScreenDetector->anythingFullscreen ();
+	    fullscreenMs = std::chrono::duration<double, std::milli> (std::chrono::steady_clock::now () - fsStart).count ();
 
-	    m_renderContext->setPause (true);
-	    return;
+	    if (fullscreen && this->m_context.state.general.keepRunning) {
+		this->m_isPaused = true;
+		this->m_pauseStart = std::chrono::steady_clock::now ();
+
+		m_renderContext->setPause (true);
+		return;
+	    }
+	}
+
+	if (perfLog) {
+	    static uint32_t perfFrames = 0;
+	    static double perfFrameMs = 0.0, perfAudioMs = 0.0, perfMediaMs = 0.0, perfFullscreenMs = 0.0;
+	    static auto perfLastReport = std::chrono::steady_clock::now ();
+
+	    perfFrames++;
+	    perfFrameMs += std::chrono::duration<double, std::milli> (std::chrono::steady_clock::now () - perfStart).count ();
+	    perfAudioMs += audioMs;
+	    perfMediaMs += mediaMs;
+	    perfFullscreenMs += fullscreenMs;
+
+	    const auto now = std::chrono::steady_clock::now ();
+
+	    if (now - perfLastReport >= std::chrono::seconds (1)) {
+		const auto reportMs = std::chrono::duration<double, std::milli> (now - perfLastReport).count ();
+		const auto frameCount = static_cast<double> (perfFrames);
+		const auto avg = [frameCount] (double total) { return total / frameCount; };
+
+		sLog.out (
+		    "[perf] fps: ", static_cast<uint32_t> (perfFrames * 1000.0 / reportMs),
+		    " | frame: ", avg (perfFrameMs), "ms",
+		    " | wallpaper render: ", s_perfRenderMs.load () / static_cast<double> (perfFrames), "ms",
+		    " | audio update: ", avg (perfAudioMs), "ms",
+		    " | media: ", avg (perfMediaMs), "ms",
+		    " | fullscreen: ", avg (perfFullscreenMs), "ms"
+		);
+
+		perfFrames = 0;
+		perfFrameMs = perfAudioMs = perfMediaMs = perfFullscreenMs = 0.0;
+		s_perfRenderMs.store (0.0);
+		perfLastReport = now;
+	    }
 	}
     }
 
@@ -978,8 +1038,15 @@ void WallpaperApplication::show () {
 }
 
 void WallpaperApplication::update (Render::Drivers::Output::OutputViewport* viewport) {
+    static const bool perfLog = std::getenv ("LWE_PERF") != nullptr;
+    const auto renderStart = std::chrono::steady_clock::now ();
+
     // render the scene
     m_renderContext->render (viewport);
+
+    if (perfLog) {
+	s_perfRenderMs += std::chrono::duration<double, std::milli> (std::chrono::steady_clock::now () - renderStart).count ();
+    }
 }
 
 void WallpaperApplication::signal (int signal) {

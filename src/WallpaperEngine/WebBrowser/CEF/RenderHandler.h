@@ -34,6 +34,10 @@ public:
 private:
     WallpaperEngine::Render::Wallpapers::CWeb* m_webdata = nullptr;
 
+    //! \brief size of the texture storage currently allocated, 0 when none
+    int m_lastPaintWidth = 0;
+    int m_lastPaintHeight = 0;
+
     [[nodiscard]] int getWidth () const;
     [[nodiscard]] int getHeight () const;
 

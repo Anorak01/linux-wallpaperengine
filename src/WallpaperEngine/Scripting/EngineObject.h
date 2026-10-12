@@ -54,6 +54,8 @@ protected:
     std::map<uint32_t, Timeout> m_intervals;
     std::map<uint32_t, Timeout> m_timeouts;
     std::vector<AudioListener> m_audioListeners;
+    uint32_t m_lastAudioDataUpdate = 0;
+    bool m_audioTickedOnce = false;
     Render::Wallpapers::CScene& m_scene;
     ScriptEngine& m_engine;
 

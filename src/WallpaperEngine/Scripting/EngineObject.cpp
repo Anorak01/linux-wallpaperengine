@@ -320,6 +320,16 @@ void EngineObject::tickAudio () {
     JSContext* ctx = this->m_engine.getContext ();
     const auto& recorder = this->m_scene.getAudioContext ().getRecorder ();
 
+    // calling into the script engine with unchanged data is wasted work every frame,
+    // listeners only need to run when new spectrum data arrived (the first call still
+    // goes through so scripts see an initial silent state)
+    if (this->m_audioTickedOnce && recorder.updateCounter == this->m_lastAudioDataUpdate) {
+	return;
+    }
+
+    this->m_audioTickedOnce = true;
+    this->m_lastAudioDataUpdate = recorder.updateCounter;
+
     for (const auto& listener : this->m_audioListeners) {
 	const float* data = recorder.audio16;
 	uint32_t count = 16;
