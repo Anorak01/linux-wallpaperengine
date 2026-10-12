@@ -130,6 +130,8 @@ void pa_server_info_cb (pa_context* ctx, const pa_server_info* info, void* userd
     if (pa_stream_connect_record (recorder->captureStream, monitor_name.c_str (), &attr, PA_STREAM_ADJUST_LATENCY)
 	!= 0) {
 	sLog.error ("Failed to connect to input for recording");
+    } else {
+	sLog.out ("Capturing system audio from ", monitor_name);
     }
 }
 
@@ -238,6 +240,11 @@ void PulseAudioPlaybackRecorder::update () {
     }
 
     this->m_captureData.fullFrameReady = false;
+
+    if (!this->m_firstFrameLogged) {
+	this->m_firstFrameLogged = true;
+	sLog.out ("First audio frame captured from the system output, audio processing is live");
+    }
 
     // convert audio data to deltas so the fft library can properly handle it
     for (int i = 0; i < WAVE_BUFFER_SIZE; i++) {

@@ -695,9 +695,17 @@ void WallpaperApplication::setupAudio () {
     );
 
     if (audioProcessingRequired && this->m_context.settings.audio.audioprocessing) {
+	sLog.out ("Audio processing: enabled, capturing the system audio output");
 	this->m_audioRecorder
 	    = std::make_unique<WallpaperEngine::Audio::Drivers::Recorders::PulseAudioPlaybackRecorder> ();
     } else {
+	if (!audioProcessingRequired) {
+	    sLog.out (
+		"Audio processing: no background requests it (supportsaudioprocessing missing in project.json)"
+	    );
+	} else {
+	    sLog.out ("Audio processing: disabled in settings");
+	}
 	this->m_audioRecorder = std::make_unique<WallpaperEngine::Audio::Drivers::Recorders::PlaybackRecorder> ();
     }
 

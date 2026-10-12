@@ -2,6 +2,7 @@
 // https://github.com/if1live/cef-gl-example
 // https://github.com/andmcgregor/cefgui
 #include "CWeb.h"
+#include "WallpaperEngine/Logging/Log.h"
 #include "WallpaperEngine/WebBrowser/CEF/WPSchemeHandlerFactory.h"
 
 #include "WallpaperEngine/Data/Model/Project.h"
@@ -85,6 +86,11 @@ void CWeb::renderFrame (const glm::ivec4& viewport) {
 void CWeb::pushAudioData () {
     // only web wallpapers that requested audio processing get fed, matching wallpaper engine's behaviour
     if (!this->getWeb ().project.supportsAudioProcessing) {
+	if (!this->m_audioNoticeLogged) {
+	    sLog.out ("Web wallpaper does not request audio processing, not feeding audio data to it");
+	    this->m_audioNoticeLogged = true;
+	}
+
 	return;
     }
 
@@ -98,6 +104,14 @@ void CWeb::pushAudioData () {
     this->m_lastAudioUpdate = now;
 
     const auto& recorder = this->getAudioContext ().getRecorder ();
+
+    if (!this->m_audioNoticeLogged) {
+	sLog.out (
+	    "Feeding audio data to web wallpaper (pulseaudio connection ready: ", recorder.hasAudio (),
+	    ", first bands: ", recorder.audio64[0], ", ", recorder.audio64[8], ", ", recorder.audio64[32], ")"
+	);
+	this->m_audioNoticeLogged = true;
+    }
 
     // wallpaper engine's audio listeners receive 128 values, so the 64 band spectrum is
     // duplicated to match the amount of values pages expect
