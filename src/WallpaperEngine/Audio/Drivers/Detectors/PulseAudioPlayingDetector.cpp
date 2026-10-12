@@ -68,6 +68,18 @@ void PulseAudioPlayingDetector::update () {
 	return this->setIsPlaying (true);
     }
 
+    // querying pulseaudio for the playing state is a chain of blocking round trips: doing it
+    // on every frame stalls the render loop for tens of milliseconds each time, which caps
+    // the whole application at a very low framerate. automute does not need up-to-the-frame
+    // precision, so a couple of checks per second is more than enough
+    const auto now = std::chrono::steady_clock::now ();
+
+    if (now - this->m_lastQuery < std::chrono::milliseconds (500)) {
+	return;
+    }
+
+    this->m_lastQuery = now;
+
     // reset playing state
     this->setIsPlaying (false);
 

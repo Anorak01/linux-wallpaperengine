@@ -2,6 +2,7 @@
 
 #include "AudioPlayingDetector.h"
 #include <condition_variable>
+#include <chrono>
 #include <mutex>
 #include <pulse/pulseaudio.h>
 
@@ -19,5 +20,6 @@ private:
     pa_mainloop* m_mainloop = nullptr;
     pa_mainloop_api* m_mainloopApi = nullptr;
     pa_context* m_context = nullptr;
+    std::chrono::steady_clock::time_point m_lastQuery {};
 };
 } // namespace WallpaperEngine::Audio::Drivers::Detectors
