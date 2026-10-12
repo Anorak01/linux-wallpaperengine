@@ -97,6 +97,14 @@ void CWeb::pushAudioData () {
 
     const auto& recorder = this->getAudioContext ().getRecorder ();
 
+    // only push when the recorder produced new spectrum data: pushing the same values
+    // again would only trigger useless renderer work every frame
+    if (this->m_audioNoticeLogged && recorder.updateCounter == this->m_lastPushedAudioUpdate) {
+	return;
+    }
+
+    this->m_lastPushedAudioUpdate = recorder.updateCounter;
+
     if (!this->m_audioNoticeLogged) {
 	sLog.out (
 	    "Feeding audio data to web wallpaper (pulseaudio connection ready: ", recorder.hasAudio (),

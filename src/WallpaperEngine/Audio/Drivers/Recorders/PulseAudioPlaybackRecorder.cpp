@@ -97,11 +97,23 @@ void pa_stream_read_cb (pa_stream* stream, const size_t /*nbytes*/, void* userda
 }
 
 void pa_server_info_cb (pa_context* ctx, const pa_server_info* info, void* userdata) {
-    if (info == nullptr) {
+    if (info == nullptr || info->default_sink_name == nullptr) {
 	return;
     }
 
     auto* recorder = static_cast<PulseAudioPlaybackRecorder::PulseAudioData*> (userdata);
+
+    std::string monitor_name (info->default_sink_name);
+    monitor_name += ".monitor";
+
+    // nothing to do if the default sink did not actually change: recreating the capture
+    // stream fires source events, which (through the subscription callback) would end up
+    // in a permanent create/destroy loop, delivering audio data in slow bursts
+    if (recorder->captureStream && recorder->monitorName == monitor_name) {
+	return;
+    }
+
+    recorder->monitorName = monitor_name;
 
     pa_sample_spec spec;
     spec.format = PA_SAMPLE_U8;
@@ -116,9 +128,6 @@ void pa_server_info_cb (pa_context* ctx, const pa_server_info* info, void* userd
 
     pa_stream_set_state_callback (recorder->captureStream, &pa_stream_notify_cb, userdata);
     pa_stream_set_read_callback (recorder->captureStream, &pa_stream_read_cb, userdata);
-
-    std::string monitor_name (info->default_sink_name);
-    monitor_name += ".monitor";
 
     // setup latency
     pa_buffer_attr attr {};
@@ -137,7 +146,13 @@ void pa_server_info_cb (pa_context* ctx, const pa_server_info* info, void* userd
 }
 
 void pa_context_subscribe_cb (pa_context* ctx, pa_subscription_event_type_t t, uint32_t idx, void* userdata) {
-    // sink changes mean re-take the stream
+    // only server changes (default sink switches) are relevant, see the mask comment in pa_context_notify_cb
+    if ((t & PA_SUBSCRIPTION_EVENT_FACILITY_MASK) != PA_SUBSCRIPTION_EVENT_SERVER
+	|| (t & PA_SUBSCRIPTION_EVENT_TYPE_MASK) != PA_SUBSCRIPTION_EVENT_CHANGE) {
+	return;
+    }
+
+    // the default sink changed, re-take the stream
     pa_operation* o = pa_context_get_server_info (ctx, &pa_server_info_cb, userdata);
     if (o) {
 	pa_operation_unref (o);
@@ -151,9 +166,12 @@ void pa_context_notify_cb (pa_context* ctx, void* userdata) {
 		// set callback
 		pa_context_set_subscribe_callback (ctx, pa_context_subscribe_cb, userdata);
 		// set events mask and enable event callback.
+		// only react to server changes (ie. the default sink being switched): listening to
+		// sink/source events made our own capture stream (connected to a monitor source)
+		// trigger the callback, which re-created the stream, which fired another event...
+		// resulting in a permanent create/destroy loop and audio data delivered in bursts
 		pa_operation* o = pa_context_subscribe (
-		    ctx, static_cast<pa_subscription_mask_t> (PA_SUBSCRIPTION_MASK_SINK | PA_SUBSCRIPTION_MASK_SOURCE),
-		    nullptr, nullptr
+		    ctx, static_cast<pa_subscription_mask_t> (PA_SUBSCRIPTION_MASK_SERVER), nullptr, nullptr
 		);
 
 		if (o) {
@@ -301,6 +319,8 @@ void PulseAudioPlaybackRecorder::update () {
 	this->m_FFTdestination16[band >> 2]
 	    = std::clamp (f1 * static_cast<float> (2.0f - pow (M_E, (1.0f - band / 15.0f) * 1.0f - 0.5f)), 0.0f, 1.0f);
     }
+
+    this->updateCounter++;
 }
 
 } // namespace WallpaperEngine::Audio::Drivers::Recorders

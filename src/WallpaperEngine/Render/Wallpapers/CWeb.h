@@ -62,5 +62,6 @@ private:
     glm::vec2 m_mousePositionLast = {};
 
     bool m_audioNoticeLogged = false;
+    uint32_t m_lastPushedAudioUpdate = 0;
 };
 }

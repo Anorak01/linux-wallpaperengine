@@ -4,6 +4,8 @@
 #include "kiss_fftr.h"
 #include <pulse/pulseaudio.h>
 
+#include <string>
+
 #define WAVE_BUFFER_SIZE 1024
 
 namespace WallpaperEngine::Audio::Drivers::Recorders {
@@ -21,6 +23,7 @@ public:
 	size_t currentWritePointer;
 	bool fullFrameReady;
 	pa_stream* captureStream;
+	std::string monitorName;
     };
 
     PulseAudioPlaybackRecorder ();

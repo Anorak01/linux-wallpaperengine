@@ -38,5 +38,8 @@ public:
     float audio16[16] = { 0 };
     float audio32[32] = { 0 };
     float audio64[64] = { 0 };
+
+    /** incremented every time new spectrum data was computed from captured audio */
+    uint32_t updateCounter = 0;
 };
 } // namespace WallpaperEngine::Audio::Drivers::Recorders
