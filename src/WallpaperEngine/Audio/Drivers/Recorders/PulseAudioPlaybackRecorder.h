@@ -42,5 +42,7 @@ private:
     float m_FFTdestination32[32] = { 0 };
     float m_FFTdestination16[16] = { 0 };
     bool m_firstFrameLogged = false;
+    /** running peak level for the automatic gain control, decays slowly */
+    float m_agcPeak = 0.0f;
 };
 } // namespace WallpaperEngine::Audio::Drivers::Recorders

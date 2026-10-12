@@ -27,8 +27,9 @@ CWeb::CWeb (
     this->m_renderHandler = new WebBrowser::CEF::RenderHandler (this);
 
     CefBrowserSettings browserSettings;
-    // documentaion says that 60 fps is maximum value
-    browserSettings.windowless_frame_rate = std::max (60, context.getApp ().getContext ().settings.render.maximumFPS);
+    // CEF's windowless frame rate is capped at 60 (values above that are out of range),
+    // clamp the configured maximum so requesting higher values does not disable the limit
+    browserSettings.windowless_frame_rate = std::clamp (context.getApp ().getContext ().settings.render.maximumFPS, 1, 60);
 
     this->m_client = new WebBrowser::CEF::BrowserClient (m_renderHandler);
     // use the custom scheme for the wallpaper's files
@@ -93,15 +94,6 @@ void CWeb::pushAudioData () {
 
 	return;
     }
-
-    // wallpaper engine feeds audio listeners at roughly 30 updates per second
-    const auto now = std::chrono::steady_clock::now ();
-
-    if (now - this->m_lastAudioUpdate < std::chrono::milliseconds (33)) {
-	return;
-    }
-
-    this->m_lastAudioUpdate = now;
 
     const auto& recorder = this->getAudioContext ().getRecorder ();
 

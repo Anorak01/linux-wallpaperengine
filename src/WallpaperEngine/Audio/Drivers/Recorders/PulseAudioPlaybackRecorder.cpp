@@ -1,5 +1,6 @@
 #include "PulseAudioPlaybackRecorder.h"
 #include "WallpaperEngine/Logging/Log.h"
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <glm/common.hpp>
@@ -246,9 +247,35 @@ void PulseAudioPlaybackRecorder::update () {
 	sLog.out ("First audio frame captured from the system output, audio processing is live");
     }
 
-    // convert audio data to deltas so the fft library can properly handle it
+    // convert audio data to deltas so the fft library can properly handle it,
+    // tracking the signal level at the same time for the automatic gain control
+    double rmsAccumulator = 0.0;
+
     for (int i = 0; i < WAVE_BUFFER_SIZE; i++) {
-	this->m_audioFFTbuffer[i] = (this->m_captureData.audioBuffer[i] - 128) / 128.0f;
+	const float sample = (this->m_captureData.audioBuffer[i] - 128) / 128.0f;
+
+	rmsAccumulator += static_cast<double> (sample) * sample;
+	this->m_audioFFTbuffer[i] = sample;
+    }
+
+    const float rms = static_cast<float> (std::sqrt (rmsAccumulator / WAVE_BUFFER_SIZE));
+
+    // the monitor signal level depends on the system volume, which would make the
+    // visualizations only react at high volumes. an automatic gain control keeps the
+    // response uniform instead: a slowly decaying running peak is tracked and the input
+    // is amplified so quiet music still produces visible values
+    this->m_agcPeak = std::max (rms, this->m_agcPeak * 0.985f);
+
+    if (rms < 0.004f) {
+	// effectively silence (also covers the 8 bit quantization noise floor),
+	// feed silence so the bands decay to zero instead of amplifying noise
+	std::fill (std::begin (this->m_audioFFTbuffer), std::end (this->m_audioFFTbuffer), 0.0f);
+    } else {
+	const float gain = std::clamp (0.2f / std::max (this->m_agcPeak, 1.0e-4f), 1.0f, 32.0f);
+
+	for (int i = 0; i < WAVE_BUFFER_SIZE; i++) {
+	    this->m_audioFFTbuffer[i] = std::clamp (this->m_audioFFTbuffer[i] * gain, -1.0f, 1.0f);
+	}
     }
 
     // perform full fft pass
@@ -268,11 +295,11 @@ void PulseAudioPlaybackRecorder::update () {
 	}
 
 	this->m_FFTdestination64[band]
-	    = fmin (1.0f, f1 * static_cast<float> (2.0f - pow (M_E, (1.0f - band / 63.0f) * 1.0f - 0.5f)));
+	    = std::clamp (f1 * static_cast<float> (2.0f - pow (M_E, (1.0f - band / 63.0f) * 1.0f - 0.5f)), 0.0f, 1.0f);
 	this->m_FFTdestination32[band >> 1]
-	    = fmin (1.0f, f1 * static_cast<float> (2.0f - pow (M_E, (1.0f - band / 31.0f) * 1.0f - 0.5f)));
+	    = std::clamp (f1 * static_cast<float> (2.0f - pow (M_E, (1.0f - band / 31.0f) * 1.0f - 0.5f)), 0.0f, 1.0f);
 	this->m_FFTdestination16[band >> 2]
-	    = fmin (1.0f, f1 * static_cast<float> (2.0f - pow (M_E, (1.0f - band / 15.0f) * 1.0f - 0.5f)));
+	    = std::clamp (f1 * static_cast<float> (2.0f - pow (M_E, (1.0f - band / 15.0f) * 1.0f - 0.5f)), 0.0f, 1.0f);
     }
 }
 

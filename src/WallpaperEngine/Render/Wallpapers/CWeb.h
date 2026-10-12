@@ -61,7 +61,6 @@ private:
     glm::vec2 m_mousePosition = {};
     glm::vec2 m_mousePositionLast = {};
 
-    std::chrono::steady_clock::time_point m_lastAudioUpdate {};
     bool m_audioNoticeLogged = false;
 };
 }
